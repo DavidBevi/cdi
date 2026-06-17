@@ -1,9 +1,11 @@
-# `cdi` - Change directory interactive
-A bash script with interactive TUI. A demo GIF will be posted ASAP.
+# `cdi` - Change Directory Interactively
+A bash script with interactive TUI.
+
+![GIF](https://github.com/DavidBevi/cdi/blob/main/cdi-demo.gif?raw=true)
 
 # Another `cdi` exists here https://github.com/antonioolf/cdi
 I googled for `cdi` and found it, however I was wanting to learn bash scripting and I found motivation in rewriting `cdi` with:
-- [Alternate screen buffer](https://stackoverflow.com/questions/11023929/using-the-alternate-screen-in-a-bash-script), so upon exiting `cdi` history is restored;
+- [Alternate screen buffer](https://stackoverflow.com/questions/11023929/using-the-alternate-screen-in-a-bash-script), to restore shell history when exiting `cdi`;
 - [Bugfix on folder spaces](https://github.com/antonioolf/cdi/pull/10), PR that is still open from Oct 2020;
 - Some UI tweaks to improve UX and to suit my preferences.
 
