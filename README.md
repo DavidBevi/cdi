@@ -17,7 +17,7 @@ I was hoping to merge the 2 projects, but Antônio kindly said he's not interest
 
 For **Bash** with standard program location (`/usr/local/bin/cdi.sh`) and config file (`~/.bashrc`) this does everything:
 ```bash
-TMP_FILE="$(mktemp)" && curl https://raw.githubusercontent.com/DavidBevi/cdi/refs/heads/main/cdi.sh > "$TMP_FILE" && sudo mv "$TMP_FILE" /usr/local/bin/cdi.sh && alias cdi=". /usr/local/bin/cdi.sh"
+sudo curl "https://raw.githubusercontent.com/DavidBevi/cdi/refs/heads/main/cdi.sh" -o "/usr/local/bin/cdi.sh" && echo -e '\nalias cdi=". /usr/local/bin/cdi.sh"' >> ~/.bashrc && . ~/.bashrc
 ```
 
 For other **Bash-like shells** it should work the same or similar. **Fish is not compatible**.
