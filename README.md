@@ -13,4 +13,4 @@ I googled for `cdi` and found it, however I was wanting to learn bash scripting 
 # Merge with antonioolf's `cdi`?
 His last activity on his `cdi`'s repo is 6 years ago... but yes! My version has the same MIT license precisely for this reason.
 
-My plan is to finish writing this, then write an email to Antonio showing my version and asking if he wants to collaborate.
+I sent him an open letter here [https://github.com/antonioolf/cdi/issues/15](https://github.com/antonioolf/cdi/issues/15), we'll see what happens.
