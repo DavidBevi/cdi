@@ -8,10 +8,16 @@ A Bash script with interactive TUI - by DavidBevi
 | - | - | - | - |
 | DavidBevi (me) | in 2026 | remade `cdi` | which includes [fix 1](https://github.com/antonioolf/cdi/pull/10) and [fix 2](https://github.com/antonioolf/cdi/pull/12) |
 
-I was hoping to merge the 2 projects, but Antônio kindly said he's not interested [here](https://github.com/antonioolf/cdi/issues/15).
+I was hoping to merge the 2 projects, but Antônio kindly said he's not interested [here](https://github.com/antonioolf/cdi/issues/15). Therefore I plan to do my best to maintain my version of `cdi`. Suggestions and contributions are welcome!
 
-Therefore I plan to do my best to maintain my version of `cdi`. Suggestions and contributions are welcome!
+<br/>
 
 # Install instructions
-1. Download `cdi.sh` and place it where you want, the standard dir is `/usr/local/bin`.
-2. To add the command `cdi` in Bash use this command `alias cdi='. /usr/local/bin/cdi.sh'` (change dir if you put `cdi.sh` elsewhere).
+❶ download `cdi.sh`, ❷ put in programs dir, ❸ make the `cdi` alias for your shell.
+
+For **Bash** with standard program location (`/usr/local/bin/cdi.sh`) and config file (`~/.bashrc`) this does everything:
+```bash
+TMP_FILE="$(mktemp)" && curl https://raw.githubusercontent.com/DavidBevi/cdi/refs/heads/main/cdi.sh > "$TMP_FILE" && sudo mv "$TMP_FILE" /usr/local/bin/cdi.sh && alias cdi=". /usr/local/bin/cdi.sh"
+```
+
+For other **Bash-like shells** it should work the same or similar. **Fish is not compatible**.
