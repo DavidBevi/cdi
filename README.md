@@ -1,16 +1,17 @@
 # `cdi` - Change Directory Interactively
-A bash script with interactive TUI.
+A Bash script with interactive TUI - by DavidBevi
 
 ![GIF](https://github.com/DavidBevi/cdi/blob/main/cdi-demo.gif?raw=true)
 
-# Another `cdi` exists here https://github.com/antonioolf/cdi
-I googled for `cdi` and found it, however I was wanting to learn bash scripting and I found motivation in rewriting `cdi` with:
-- [Alternate screen buffer](https://stackoverflow.com/questions/11023929/using-the-alternate-screen-in-a-bash-script), to restore shell history when exiting `cdi`;
-- [Bugfix on folder spaces](https://github.com/antonioolf/cdi/pull/10), PR that is still open from Oct 2020;
-- [More portable shebang](https://github.com/antonioolf/cdi/pull/12), PR that is still open from Oct 2020;
-- Some UI tweaks to improve UX and to suit my preferences.
+# The two `cdi`s
+| Antônio Oliveira | in 2020 | made [`cdi`](https://github.com/antonioolf/cdi) | which is inactive since 2020 |
+| - | - | - | - |
+| DavidBevi (me) | in 2026 | remade `cdi` | which includes [fix 1](https://github.com/antonioolf/cdi/pull/10) and [fix 2](https://github.com/antonioolf/cdi/pull/12) |
 
-# Merge with antonioolf's `cdi`?
-His last activity on his `cdi`'s repo is 6 years ago... but yes! My version has the same MIT license precisely for this reason.
+I was hoping to merge the 2 projects, but Antônio kindly said he's not interested [here](https://github.com/antonioolf/cdi/issues/15).
 
-I sent him an open letter here [https://github.com/antonioolf/cdi/issues/15](https://github.com/antonioolf/cdi/issues/15), we'll see what happens.
+Therefore I plan to do my best to maintain my version of `cdi`. Suggestions and contributions are welcome!
+
+# Install instructions
+1. Download `cdi.sh` and place it where you want, the standard dir is `/usr/local/bin`.
+2. To add the command `cdi` in Bash use this command `alias cdi='. /usr/local/bin/cdi.sh'` (change dir if you put `cdi.sh` elsewhere).
