@@ -1,34 +1,72 @@
 #!/usr/bin/env bash
-TITLE="CDI - Change Directory Interactively"
-HOW_TO_USE="
- - MOVE with arrow keys
- - RESTORE starting-dir with R
- - EXIT with any other key"
+TITLE="CDI: Change Dir Interactive - by DavidBevi"
+HELP_LINE="ARROWS:move  H:help  R:reset  OTHER:exit"
+HELP_SCREEN="
+DISAMBIGUATION
+- You're using CDI remade by DavidBevi in 2026
+   https://github.com/DavidBevi/cdi
+- CDI by Antonio Oliveria is inactive since 2020
+   https://github.com/antonioolf/cdi/issues/15
+
+USAGE
+- MOVE the cursor and select a subdir with arrow keys
+- HELP_SCREEN (show this screen) with H
+- RESET / RESTORE the starting directory with R
+- EXIT from CDI with any other key"
 
 
 # SETTINGS ####################################################################
 IFS=$"\n"  # makes script compatible with dirnames-with-spaces
-trap exit_script RETURN  # allows to turn errors into graceful exit
+trap "EXIT=err" RETURN  # allows to catch errors and exit gracefully
+
+# global vars
 STARTING_DIR="$(pwd)/"
+HEADER_ROWS=0
 SUBDIRS_ARR=()
 SUBDIRS_LEN=0
 HIGHLIGHT_POS=0
 HIGHLIGHT_ITEM=""
+EXIT=0
+
+# ▼ when called with argument(s) enter help, else normal
+if [ $# -gt 0 ]; then MODE="help"; else MODE="normal"; fi
 
 
 # FUNCTIONS ###################################################################
 main() {
-    clear
-    print_header
-    print_curr_dir
-    print_list_of_subdirs # updates SUBDIRS_ARR + SUBDIRS_LEN
-    # print_debug
-    print_highligh_over_list # updates HIGHLIGHT_POS + HIGHLIGHT_ITEM
-    wait_for_input
+    if [ $EXIT == 0 ]; then
+        show_help_if_needed
+        clear
+        print_header
+        print_curr_dir # updates HEADER_ROWS
+        print_list_of_subdirs # updates SUBDIRS_ARR + SUBDIRS_LEN
+        # print_debug
+        print_highligh_over_list # updates HIGHLIGHT_POS + HIGHLIGHT_ITEM
+        wait_for_input  # can update MODE
+    elif [ $EXIT == 1 ]; then
+        clear
+        tput cnorm rmcup
+    else  # EXIT == err
+        clear
+        tput cnorm rmcup
+        echo "ERROR: cdi aborted"
+    fi
+}
+
+show_help_if_needed() {
+    if [ $MODE == "help" ]; then
+        clear
+        echo -e "\e[1;7m $TITLE \e[0m\n$HELP_SCREEN\n"
+        echo -e "\e[1;7m Press any key to close help and use CDI \e[0m"
+        # wait for any input and then set normal mode
+        read -rsn1 _; MODE="normal"
+        # IMPORTANT clear input buffer so enter and arrows don't bug
+        while IFS= read -rsn1 -t 0.01 _; do :; done
+    fi  # resume main
 }
 
 print_header() {
-    echo -e "\e[1;7m $TITLE \e[0m$HOW_TO_USE\n"
+    echo -e "\e[1;7m $TITLE \e[0m\n $HELP_LINE\n"
 }
 
 print_curr_dir() {
@@ -80,38 +118,35 @@ print_highligh_over_list() {
 }
 
 wait_for_input() {
-    # ▼ read 1 char input without waiting for enter
+    # ▼ wait for a keystroke -> read first byte and save into INPUT
     read -rsn1 INPUT;
-    # ▼ if "r": restore starting dir
-    if [ "$INPUT" == "r" ]; then
-        cd "$STARTING_DIR"
-        main
-    # ▼ if esc_char: read 2 chars
-    elif [ "$INPUT" == $(printf "\u1b") ]; then
-        read -rsn2 INPUT
-    fi
-    # ▼ route input to proper action
+    # ▼ if INPUT is ESC (= multi-byte keystroke) read another 2 bytes
+    if [[ $INPUT == $'\e' ]]; then read -rsn2 INPUT; fi
+    # ▼ loop to consume/empty the input buffer
+    #   -> prevents aborting when user presses 2 arrow keys together
+    while IFS= read -rsn1 -t 0.001 BYTE; do :; done
+    # ▼ route INPUT to proper action
     case "$INPUT" in
-        [A) up;; [B) down;; [C) right;; [D) left;; *) exit_script;;
+        [A) up;;    [B) down;;    [C) right;;    [D) left;;
+        h ) help;;  r ) restore;;
+        * ) set_exit;;
     esac
+    # ▼ continue by relaunching main
+    main
 }
 
 # POSSIBLE ACTIONS
-up()   { ((HIGHLIGHT_POS+=-1)); main; }
-down() { ((HIGHLIGHT_POS+=1));  main; }
-left()  { cd ..; main; }
-right() { cd "$HIGHLIGHT_ITEM"; main; }
-
-exit_script() {
-    if [ $? != 0 ];  # $? = exit code, if 0 OK else ERROR
-        then tput rmcup cnorm; echo "ERROR: cdi aborted"
-        else tput rmcup cnorm
-    fi
-}
+up()   { ((HIGHLIGHT_POS+=-1)); }
+down() { ((HIGHLIGHT_POS+=1)); }
+left()  { HIGHLIGHT_POS=0; cd ..; }
+right() { HIGHLIGHT_POS=0; cd "$HIGHLIGHT_ITEM"; }
+help() { MODE="help"; }
+restore() { cd "$STARTING_DIR"; }
+set_exit() { EXIT=1; }
 
 
 
 # BODY ########################################################################
 tput smcup  # call "alt screen" / "cup mode", once
 tput civis  # hide cursor
-main        # call the function that (re)draws everything
+main        # launch cdi
