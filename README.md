@@ -13,15 +13,8 @@ I was hoping to merge the 2 projects, but Antônio kindly said he's not interest
 <br/>
 
 # Install instructions
-❶ download `cdi.sh`, ❷ put in programs dir, ❸ make the `cdi` alias for your shell.
 
-### Bash
+You have to ❶ download `cdi.sh`, ❷ put in programs dir, ❸ make the `cdi` alias for your shell. Here's a command that does all 3 steps:
 ```bash
 sudo curl "https://raw.githubusercontent.com/DavidBevi/cdi/refs/heads/main/cdi.sh" -o "/usr/local/bin/cdi.sh" && echo -e '\nalias cdi=". /usr/local/bin/cdi.sh"' >> ~/.bashrc && . ~/.bashrc
 ```
-
-### Other **Bash-like shells** like Ksh and Zsh
-`cdi` should work. Steps ❶ and ❷ are identical, for step ❸ edit the config file of your shell instead of `.bashrc`.
-
-### Fish is not compatible
-Fish cannot interpret this script, and even if you tell Fish to `bash /path/to/cdi.sh` it won't `cd` in Fish, it will create a Bash subinstance that will `cd` but also immediately close itself after it, making it useless.
