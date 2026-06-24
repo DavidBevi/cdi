@@ -54,7 +54,6 @@ main() {
     elif [ $EXIT == "YES" ]; then
         clear
         tput cnorm rmcup
-        echo "debug-normalexit"
     else  # $EXIT == "ERR"
         clear
         tput cnorm rmcup
