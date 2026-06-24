@@ -25,7 +25,7 @@ FIX: use an interactive Bash session and launch with '. $N'\nEXITING"; exit; }
 
 # SETTINGS ####################################################################
 IFS=$"\n"  # makes script compatible with dirnames-with-spaces
-trap "EXIT=err" RETURN  # allows to catch errors and exit gracefully
+trap "EXIT=ERR" RETURN  # allows to catch errors and exit gracefully
 
 # global vars
 STARTING_DIR="$(pwd)/"
@@ -34,7 +34,7 @@ SUBDIRS_ARR=()
 SUBDIRS_LEN=0
 HIGHLIGHT_POS=0
 HIGHLIGHT_ITEM=""
-EXIT="no"
+EXIT="NO"
 
 # ▼ when called with argument(s) enter help, else normal
 if [ $# -gt 0 ]; then MODE="help"; else MODE="normal"; fi
@@ -42,7 +42,7 @@ if [ $# -gt 0 ]; then MODE="help"; else MODE="normal"; fi
 
 # FUNCTIONS ###################################################################
 main() {
-    if [ $EXIT == "no" ]; then
+    if [ $EXIT == "NO" ]; then
         show_help_if_needed
         clear
         print_header
@@ -51,10 +51,11 @@ main() {
         # print_debug
         print_highligh_over_list # updates HIGHLIGHT_POS + HIGHLIGHT_ITEM
         wait_for_input  # can update MODE
-    elif [ $EXIT == "yes" ]; then
+    elif [ $EXIT == "YES" ]; then
         clear
         tput cnorm rmcup
-    else  # $EXIT == "err"
+        echo "debug-normalexit"
+    else  # $EXIT == "ERR"
         clear
         tput cnorm rmcup
         echo "ERROR: cdi aborted"
@@ -135,9 +136,11 @@ wait_for_input() {
     while IFS= read -rsn1 -t 0.001 BYTE; do :; done
     # ▼ route INPUT to proper action
     case "$INPUT" in
-        [A) up;;    [B) down;;    [C) right;;    [D) left;;
+        # Normal mode arrows      →  [A  [B  [C  [D
+        # Application cursor mode →  OA  OB  OC  OD
+        [A|OA) up;;    [B|OB) down;;    [C|OC) right;;    [D|OD) left;;
         h ) help;;  r ) restore;;
-        * ) set_exit;;
+        * ) set_exit ;;
     esac
     # ▼ continue by relaunching main
     main
@@ -150,8 +153,7 @@ left()  { HIGHLIGHT_POS=0; cd ..; }
 right() { HIGHLIGHT_POS=0; cd "$HIGHLIGHT_ITEM"; }
 help() { MODE="help"; }
 restore() { cd "$STARTING_DIR"; }
-set_exit() { EXIT="yes"; }
-
+set_exit() { EXIT="YES"; }
 
 
 # BODY ########################################################################
