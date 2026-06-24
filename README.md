@@ -15,15 +15,27 @@ Suggestions and contributions are welcome!
 <br/>
 
 # Install instructions
-You have to ❶ download `cdi.sh`, ❷ put in programs dir, ❸ make the `cdi` alias. Here's a command that does all 3 steps:
+❶ download `cdi.sh`, ❷ put in `/usr/local/bin/`, ❸ make the `cdi` alias. Here's a command that does all 3 steps:
 ```bash
 sudo curl "https://raw.githubusercontent.com/DavidBevi/cdi/refs/heads/main/cdi.sh" -o "/usr/local/bin/cdi.sh" && echo -e '\nalias cdi=". /usr/local/bin/cdi.sh"' >> ~/.bashrc && . ~/.bashrc
 ```
 
+# Usage
+Run `cdi` with command `cdi`.
+
+> **Details:** `cdi` must be _sourced_, that is `source cdi.sh` or `. cdi.sh`.<br/>
+With `./cdi.sh` or `bash cdi.sh` a _sub-shell_ is created, and `cdi` will `cd` _the sub-shell_ and exit.<br/>
+To save you an headache `cdi` only works when sourced, and prints an helpful text otherwise.
+
+
+
 <br/>
 
 # Compatibility with other shells
-`cdi` shouldn't be compatible with other shells. If you are trying to use this script and you're having issues this might be the reason.
+None.
+
+> **Actually** I only know that Fish and Zsh don't work and don't help you understand why.<br/>
+To save you an headache `cdi` only works in Bash, and prints an helpful text otherwise.
 
 ### Wait, what's a shell?
 Shells are programs that accepts textual commands, Bash is the most famous and popular Linux shell. Usually you might also call it "terminal", but the "terminal emulator" is the program that **_displays_** the input and output of the shell. You can change shell without changing terminal (or the opposite).
@@ -36,6 +48,3 @@ Run `bash` and work there: this command calls a sub-shell, from which you can do
 
 ### Permanently change shell
 Run `chsh -s /usr/bin/bash` and type the superuser password (the one you type for `sudo`).
-
-### So, no other shells?
-Correct 😔. I _might_ try alt versions of `cdi`, but I'm not motivated _atm_. If you're able and willing you can always contribute to the project! 😄
