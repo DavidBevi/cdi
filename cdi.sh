@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# FISH will crash, this prints an helpful message #############################
+ERROR=" this script must be used with Bash shell
+#   (You're using a different shell, it crashed)
+#   WIKI: https://simple.wikipedia.org/wiki/Bash
+" #_____________________________________________
+unset ERROR
+
 TITLE="CDI: Change Dir Interactive - by DavidBevi"
 HELP_LINE="ARROWS:move  H:help  R:reset  OTHER:exit"
 HELP_SCREEN="
