@@ -14,6 +14,14 @@ USAGE
 - RESET / RESTORE the starting directory with R
 - EXIT from CDI with any other key"
 
+# ENFORCE BASH ################################################################
+[ -z "$BASH_VERSION" ] && { echo -e "ERROR: this script must be used with Bash.
+WIKI: https://simple.wikipedia.org/wiki/Bash \nEXITING"; return; }
+
+# ENFORCE SOURCE (".") ########################################################
+[ "${BASH_SOURCE[0]}" == "$0" ] && { N="filename"; echo -e "
+ERROR: this script doesn't work with 'bash $N' or './$N'.
+FIX: use an interactive Bash session and launch with '. $N'\nEXITING"; exit; }
 
 # SETTINGS ####################################################################
 IFS=$"\n"  # makes script compatible with dirnames-with-spaces
@@ -26,7 +34,7 @@ SUBDIRS_ARR=()
 SUBDIRS_LEN=0
 HIGHLIGHT_POS=0
 HIGHLIGHT_ITEM=""
-EXIT=0
+EXIT="no"
 
 # ▼ when called with argument(s) enter help, else normal
 if [ $# -gt 0 ]; then MODE="help"; else MODE="normal"; fi
@@ -34,7 +42,7 @@ if [ $# -gt 0 ]; then MODE="help"; else MODE="normal"; fi
 
 # FUNCTIONS ###################################################################
 main() {
-    if [ $EXIT == 0 ]; then
+    if [ $EXIT == "no" ]; then
         show_help_if_needed
         clear
         print_header
@@ -43,10 +51,10 @@ main() {
         # print_debug
         print_highligh_over_list # updates HIGHLIGHT_POS + HIGHLIGHT_ITEM
         wait_for_input  # can update MODE
-    elif [ $EXIT == 1 ]; then
+    elif [ $EXIT == "yes" ]; then
         clear
         tput cnorm rmcup
-    else  # EXIT == err
+    else  # $EXIT == "err"
         clear
         tput cnorm rmcup
         echo "ERROR: cdi aborted"
@@ -121,7 +129,7 @@ wait_for_input() {
     # ▼ wait for a keystroke -> read first byte and save into INPUT
     read -rsn1 INPUT;
     # ▼ if INPUT is ESC (= multi-byte keystroke) read another 2 bytes
-    if [[ $INPUT == $'\e' ]]; then read -rsn2 INPUT; fi
+    if [ $INPUT == $'\e' ]; then read -rsn2 INPUT; fi
     # ▼ loop to consume/empty the input buffer
     #   -> prevents aborting when user presses 2 arrow keys together
     while IFS= read -rsn1 -t 0.001 BYTE; do :; done
@@ -142,7 +150,7 @@ left()  { HIGHLIGHT_POS=0; cd ..; }
 right() { HIGHLIGHT_POS=0; cd "$HIGHLIGHT_ITEM"; }
 help() { MODE="help"; }
 restore() { cd "$STARTING_DIR"; }
-set_exit() { EXIT=1; }
+set_exit() { EXIT="yes"; }
 
 
 
