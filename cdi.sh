@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FISH will crash, this prints an helpful message #############################
+# ERROR is here to print an helpful msg in some shells that crash (Fish) ######
 ERROR=" this script must be used with Bash shell
 #   (You're using a different shell, it crashed)
 #   WIKI: https://simple.wikipedia.org/wiki/Bash
@@ -9,17 +9,18 @@ unset ERROR
 TITLE="CDI: Change Dir Interactive - by DavidBevi"
 HELP_LINE="ARROWS:move  H:help  R:reset  OTHER:exit"
 HELP_SCREEN="
-DISAMBIGUATION
-- You're using CDI remade by DavidBevi in 2026
-   https://github.com/DavidBevi/cdi
-- CDI by Antonio Oliveria is inactive since 2020
-   https://github.com/antonioolf/cdi/issues/15
+USAGE:
+   MOVE the cursor and select a subdir with arrow keys
+   HELP_SCREEN (show this screen) with H
+   RESET / RESTORE the starting directory with R
+   EXIT from CDI with any other key
 
-USAGE
-- MOVE the cursor and select a subdir with arrow keys
-- HELP_SCREEN (show this screen) with H
-- RESET / RESTORE the starting directory with R
-- EXIT from CDI with any other key"
+ABOUT:
+   https://github.com/DavidBevi/cdi
+
+CREDITS:
+   Inspired by CDI by Antonio Oliveria (inactive)
+   https://github.com/antonioolf/cdi/issues/15"
 
 # ENFORCE BASH ################################################################
 [ -z "$BASH_VERSION" ] && { echo -e "ERROR: this script must be used with Bash.
@@ -32,104 +33,91 @@ FIX: use an interactive Bash session and launch with '. $N'\nEXITING"; exit; }
 
 # SETTINGS ####################################################################
 IFS=$"\n"  # makes script compatible with dirnames-with-spaces
-trap "EXIT=ERR" RETURN  # allows to catch errors and exit gracefully
+trap "MODE=ERROR" RETURN  # allows to catch errors and exit gracefully
 
 # global vars
 STARTING_DIR="$(pwd)/"
-HEADER_ROWS=0
-SUBDIRS_ARR=()
-SUBDIRS_LEN=0
-HIGHLIGHT_POS=0
-HIGHLIGHT_ITEM=""
-EXIT="NO"
-
-# ▼ when called with argument(s) enter help, else normal
-if [ $# -gt 0 ]; then MODE="help"; else MODE="normal"; fi
+# when called with argument(s) MODE=HELP
+MODE="NORMAL"; [ $# -gt 0 ] && MODE="HELP"
+# associative arrays to remember stuff for each visited dir
+declare -A HIGHLIGHT_POS ; HIGHLIGHT_POS["$WD"]=0
+declare -A HIGHLIGHT_ITEM; HIGHLIGHT_ITEM["$WD"]=0
 
 
 # FUNCTIONS ###################################################################
 main() {
-    if [ $EXIT == "NO" ]; then
-        show_help_if_needed
-        clear
-        print_header
-        print_curr_dir # updates HEADER_ROWS
-        print_list_of_subdirs # updates SUBDIRS_ARR + SUBDIRS_LEN
-        # print_debug
-        print_highligh_over_list # updates HIGHLIGHT_POS + HIGHLIGHT_ITEM
-        wait_for_input  # can update MODE
-    elif [ $EXIT == "YES" ]; then
-        clear
+    clear
+    if [ $MODE == "HELP" ]; then show_help; fi
+    if [ $MODE == "NORMAL" ]; then
+        print_working_dir # set WD + HEADER_OFFSET
+        print_list_of_subdirs # set SUBDIRS_ARR, save cursor pos
+        print_highlight_over_list # update HIGHLIGHT globals
+        # print_debug # after subdirs, using saved cursor pos
+        wait_for_input # can update MODE + HIGHLIGHT globals
+    else
         tput cnorm rmcup
-    else  # $EXIT == "ERR"
-        clear
-        tput cnorm rmcup
-        echo "ERROR: cdi aborted"
+        if [ "$MODE" != "EXIT" ]; then echo "ERROR: cdi aborted"; fi
     fi
 }
 
-show_help_if_needed() {
-    if [ $MODE == "help" ]; then
-        clear
-        echo -e "\e[1;7m $TITLE \e[0m\n$HELP_SCREEN\n"
-        echo -e "\e[1;7m Press any key to close help and use CDI \e[0m"
-        # wait for any input and then set normal mode
-        read -rsn1 _; MODE="normal"
-        # IMPORTANT clear input buffer so enter and arrows don't bug
-        while IFS= read -rsn1 -t 0.01 _; do :; done
-    fi  # resume main
+show_help() {
+    # ▼ display HELP_SCREEN and wait for input to resume cdi
+    echo -e "\e[1;7m $TITLE \e[0m\n$HELP_SCREEN\n"
+    echo -e "\e[1;7m Press any key to close help and use CDI \e[0m"
+    read -rsn1; MODE="NORMAL"  # wait for input; unset help-mode
+    while IFS= read -rsn1 -t 0.01; do :; done  # clear input buffer
+    clear
 }
 
-print_header() {
+print_working_dir() {
     echo -e "\e[1;7m $TITLE \e[0m\n $HELP_LINE\n"
-}
-
-print_curr_dir() {
-    # ▼ prints path with trailing "/", mode: bold inverted
-    DIR=$(pwd)
-    if [ "$DIR" == "/" ];
-        then echo -e "\e[1;7m/\e[0m"
-        else echo -e "\e[1;7m$DIR/\e[0m"
-    fi
-    # ▼ updates HEADER_ROWS
-    IFS='[;' read -p $'\e[6n' -d R -rs _ HEADER_ROWS COL _
+    # set WD and if NOT root add trailing "/"
+    WD="$(pwd)"; [ "$WD" == "/" ] || WD+="/"
+    # print WD with style bold inverted
+    echo -e "\e[1;7m$WD\e[0m"
+    # set HEADER_OFFSET
+    IFS='[;' read -p $'\e[6n' -d R -rs _ HEADER_OFFSET COL _
 }
 
 print_list_of_subdirs() {
-    # global variables are reset
+    # each subdir is printed and stored in SUBDIRS_ARR
     SUBDIRS_ARR=()
-    SUBDIRS_LEN=0
-    # (ls -p | grep "/") lists all subdirs
-    # its result goes into the while loop, where
-    # each dir is printed and stored in global variables
-    while IFS= read -r DIR; do
+    for DIR in */; do
         echo -e " ├─ $DIR"
         SUBDIRS_ARR+=("$DIR")
-        SUBDIRS_LEN=$(( $SUBDIRS_LEN + 1 ))
-    done < <(ls -p | grep "/")
+        # WHEN 'CD'ING UP A LEVEL HIGHLIGHT SUBDIR OF PROVENANCE
+        # using the length of SUBDIRS_ARR when DIR == CHILD
+        [ "$DIR" == "$CHILD" ] && {
+            HIGHLIGHT_POS["$WD"]=$(( ${#SUBDIRS_ARR[@]} - 1 ))
+        }
+    done
+    # clean up variable else highlight is stuck
+    unset CHILD
+    # save cursor pos (for print-debug)
+    echo -en "\e[s"
+}
+
+print_highlight_over_list() {
+    # ▼ if dir has NO subdirs: display "[no dirs]"
+    if [ "${SUBDIRS_ARR[0]}" == "*/" ]; then
+        HIGHLIGHT_POS["$WD"]=0
+        CURSOR_POS=$HEADER_OFFSET
+        echo -e "\e[$CURSOR_POS;1H\e[33m ├─ [no dirs]\e[0m\e[K"
+        # ▼ if dir HAS subdirs: highlight selected dir
+    else
+        MOD=${#SUBDIRS_ARR[@]}
+        HIGHLIGHT_POS["$WD"]=$(( (${HIGHLIGHT_POS["$WD"]} + $MOD) % $MOD ))
+        HIGHLIGHT_ITEM["$WD"]=${SUBDIRS_ARR[${HIGHLIGHT_POS["$WD"]}]}
+        CURSOR_POS=$(( ${HIGHLIGHT_POS["$WD"]} + $HEADER_OFFSET ))
+        echo -en "\e[$CURSOR_POS;5H\e[1;7m${HIGHLIGHT_ITEM["$WD"]}\e[0m"
+    fi
 }
 
 print_debug() {
-    echo
+    echo -e "\e[u"  # use previously saved cursor pos
     echo -e "\e[1m[Debug]\e[0m"
-    echo -e "\e[1mSUBDIRS_ARR=\e[0m${SUBDIRS_ARR[*]}"
-    echo -e "\e[1mSUBDIRS_LEN=\e[0m$SUBDIRS_LEN"
-    echo -e "\e[1mHIGHLIGHT_POS=\e[0m$HIGHLIGHT_POS"
-    echo -e "\e[1mHIGHLIGHT_ITEM=\e[0m$HIGHLIGHT_ITEM"
-}
-
-print_highligh_over_list() {
-    # ▼ if dir HAS subdirs: highlight (invert) selection
-    if [ "$SUBDIRS_LEN" -gt 0 ]; then
-        HIGHLIGHT_POS=$(( ($HIGHLIGHT_POS + $SUBDIRS_LEN) % $SUBDIRS_LEN ))
-        HIGHLIGHT_ITEM="${SUBDIRS_ARR[$HIGHLIGHT_POS]}"
-        POS=$(( $HIGHLIGHT_POS + $HEADER_ROWS ))
-        echo -en "\e[$POS;5H\e[1;7m$HIGHLIGHT_ITEM\e[0m"
-    # ▼ if dir has NO subdirs: echo [no dirs]
-    else
-        POS=$HEADER_ROWS
-        echo -en "\e[$POS;1H\e[33m ├─ [no dirs]\e[0m\e[K"
-    fi
+    echo "POS: ${HIGHLIGHT_POS[$WD]} -- ITEM: ${HIGHLIGHT_ITEM[$WD]}"
+    declare -p MODE WD SUBDIRS_ARR
 }
 
 wait_for_input() {
@@ -139,27 +127,27 @@ wait_for_input() {
     if [ $INPUT == $'\e' ]; then read -rsn2 INPUT; fi
     # ▼ loop to consume/empty the input buffer
     #   -> prevents aborting when user presses 2 arrow keys together
-    while IFS= read -rsn1 -t 0.001 BYTE; do :; done
+    while IFS= read -rsn1 -t 0.01; do :; done
     # ▼ route INPUT to proper action
     case "$INPUT" in
-        # Normal mode arrows      →  [A  [B  [C  [D
-        # Application cursor mode →  OA  OB  OC  OD
+        # Arrows codes in Normal Mode:  [A  [B  [C  [D
+        #     Application Cursor Mode:  OA  OB  OC  OD
         [A|OA) up;;    [B|OB) down;;    [C|OC) right;;    [D|OD) left;;
-        h ) help;;  r ) restore;;
-        * ) set_exit ;;
+        h) help;;      r) restore;;     *) set_exit;;
     esac
     # ▼ continue by relaunching main
     main
 }
 
 # POSSIBLE ACTIONS
-up()   { ((HIGHLIGHT_POS+=-1)); }
-down() { ((HIGHLIGHT_POS+=1)); }
-left()  { HIGHLIGHT_POS=0; cd ..; }
-right() { HIGHLIGHT_POS=0; cd "$HIGHLIGHT_ITEM"; }
-help() { MODE="help"; }
-restore() { cd "$STARTING_DIR"; }
-set_exit() { EXIT="YES"; }
+# after each action main() repeats
+up()       { (( HIGHLIGHT_POS["$WD"]+=-1 )); }
+down()     { (( HIGHLIGHT_POS["$WD"]+=1 )); }
+left()     { CHILD="$(basename $WD)/"; cd ..; }
+right()    { cd "${HIGHLIGHT_ITEM["$WD"]}"; }
+help()     { MODE="HELP"; }
+restore()  { cd "$STARTING_DIR"; }
+set_exit() { MODE="EXIT"; }
 
 
 # BODY ########################################################################
