@@ -24,7 +24,7 @@ CREDITS:
 
 # ENFORCE BASH ################################################################
 [ -z "$BASH_VERSION" ] && { echo -e "ERROR: this script must be used with Bash.
-WIKI: https://simple.wikipedia.org/wiki/Bash \nEXITING"; return; }
+WIKI: https://simple.wikipedia.org/wiki/Bash \nEXITING" >&2; return 1; }
 
 # ENFORCE SOURCE (".") ########################################################
 [ "${BASH_SOURCE[0]}" == "$0" ] && { N="filename"; echo -e "
@@ -36,12 +36,12 @@ IFS=$"\n"  # makes script compatible with dirnames-with-spaces
 trap "MODE=ERROR" RETURN  # allows to catch errors and exit gracefully
 
 # global vars
-STARTING_DIR="$(pwd)/"
+STARTING_DIR="$PWD"
 # when called with argument(s) MODE=HELP
 MODE="NORMAL"; [ $# -gt 0 ] && MODE="HELP"
 # associative arrays to remember stuff for each visited dir
-declare -A HIGHLIGHT_POS ; HIGHLIGHT_POS["$WD"]=0
-declare -A HIGHLIGHT_ITEM; HIGHLIGHT_ITEM["$WD"]=0
+declare -A HIGHLIGHT_POS
+declare -A HIGHLIGHT_ITEM
 
 
 # FUNCTIONS ###################################################################
@@ -49,14 +49,15 @@ main() {
     clear
     if [ $MODE == "HELP" ]; then show_help; fi
     if [ $MODE == "NORMAL" ]; then
-        print_working_dir # set WD + HEADER_OFFSET
-        print_list_of_subdirs # set SUBDIRS_ARR, save cursor pos
-        print_highlight_over_list # update HIGHLIGHT globals
-        # print_debug # after subdirs, using saved cursor pos
-        wait_for_input # can update MODE + HIGHLIGHT globals
+        print_title_and_pwd
+        print_list_of_subdirs # update HIGHLIGHT_* globals
+        wait_for_input # can update MODE + HIGHLIGHT_* globals
     else
         tput cnorm rmcup
-        if [ "$MODE" != "EXIT" ]; then echo "ERROR: cdi aborted"; fi
+        if [ "$MODE" != "EXIT" ]; then
+            echo "ERROR: cdi aborted" >&2
+            return 1
+        fi
     fi
 }
 
@@ -69,62 +70,70 @@ show_help() {
     clear
 }
 
-print_working_dir() {
-    echo -e "\e[1;7m $TITLE \e[0m\n $HELP_LINE\n"
-    # set WD and if NOT root add trailing "/"
-    WD="$(pwd)"; [ "$WD" == "/" ] || WD+="/"
-    # print WD with style bold inverted
-    echo -e "\e[1;7m$WD\e[0m"
-    # set HEADER_OFFSET
-    IFS='[;' read -p $'\e[6n' -d R -rs _ HEADER_OFFSET COL _
+print_title_and_pwd() {
+    # print PWD/ with style bold inverted
+    echo -e "\e[1;7m $TITLE \e[0m\n $HELP_LINE\n\n\e[1;7m${PWD%/}/\e[0m"
 }
 
 print_list_of_subdirs() {
-    # each subdir is printed and stored in SUBDIRS_ARR
-    SUBDIRS_ARR=()
-    for DIR in */; do
-        echo -e " ├─ $DIR"
-        SUBDIRS_ARR+=("$DIR")
-        # WHEN 'CD'ING UP A LEVEL HIGHLIGHT SUBDIR OF PROVENANCE
-        # using the length of SUBDIRS_ARR when DIR == CHILD
-        [ "$DIR" == "$CHILD" ] && {
-            HIGHLIGHT_POS["$WD"]=$(( ${#SUBDIRS_ARR[@]} - 1 ))
-        }
-    done
-    # clean up variable else highlight is stuck
-    unset CHILD
-    # save cursor pos (for print-debug)
-    echo -en "\e[s"
-}
-
-print_highlight_over_list() {
-    # ▼ if dir has NO subdirs: display "[no dirs]"
-    if [ "${SUBDIRS_ARR[0]}" == "*/" ]; then
-        HIGHLIGHT_POS["$WD"]=0
-        CURSOR_POS=$HEADER_OFFSET
-        echo -e "\e[$CURSOR_POS;1H\e[33m ├─ [no dirs]\e[0m\e[K"
-        # ▼ if dir HAS subdirs: highlight selected dir
-    else
-        MOD=${#SUBDIRS_ARR[@]}
-        HIGHLIGHT_POS["$WD"]=$(( (${HIGHLIGHT_POS["$WD"]} + $MOD) % $MOD ))
-        HIGHLIGHT_ITEM["$WD"]=${SUBDIRS_ARR[${HIGHLIGHT_POS["$WD"]}]}
-        CURSOR_POS=$(( ${HIGHLIGHT_POS["$WD"]} + $HEADER_OFFSET ))
-        echo -en "\e[$CURSOR_POS;5H\e[1;7m${HIGHLIGHT_ITEM["$WD"]}\e[0m"
+    # fetch subdirs; abort if no subdirs
+    local SUBDIRS=(*/)
+    if [ "${SUBDIRS[0]}" == "*/" ]; then
+        echo -e "\e[33m └─ [no dirs]\e[0m"
+        return
     fi
-}
+    local SUBDLEN="${#SUBDIRS[@]}"
 
-print_debug() {
-    echo -e "\e[u"  # use previously saved cursor pos
-    echo -e "\e[1m[Debug]\e[0m"
-    echo "POS: ${HIGHLIGHT_POS[$WD]} -- ITEM: ${HIGHLIGHT_ITEM[$WD]}"
-    declare -p MODE WD SUBDIRS_ARR
+    # update global HIGHLIGHT_POS
+    # if CHILD exists it's the subdir we're coming from: use it + delete it
+    if [ "$CHILD" ]; then
+        for i in "${!SUBDIRS[@]}"; do
+            if [ "$CHILD" == "${SUBDIRS[$i]}" ]
+                then HIGHLIGHT_POS["$PWD"]=$i; break; fi
+        done
+        unset CHILD
+    # else sanitize negative values (I think math func is faster than IF)
+    else
+        HIGHLIGHT_POS["$PWD"]=$(( (HIGHLIGHT_POS[$PWD] + SUBDLEN) % SUBDLEN ))
+    fi
+    local INDEX_IN_SUBDIRS=${HIGHLIGHT_POS["$PWD"]}
+
+    # update global HIGHLIGHT_ITEM
+    HIGHLIGHT_ITEM["$PWD"]="${SUBDIRS[$INDEX_IN_SUBDIRS]}"
+
+    # make pages to display long lists
+    local CURRENT_ROW; local _
+    IFS='[;' read -p $'\e[6n' -d R -rs _ CURRENT_ROW _ _
+    # ensure CURRENT_ROW is numeric, else script crashes
+    [[ "$CURRENT_ROW" =~ ^[0-9]+$ ]] || CURRENT_ROW=4
+    local PAGELEN=$((LINES - CURRENT_ROW - 2))
+    local PAGES=$(( (SUBDLEN + PAGELEN - 1) / PAGELEN ))  # ceil()
+    local CURR_PAGE=$(( INDEX_IN_SUBDIRS / PAGELEN ))
+    local INDEX_IN_PAGE=$(( INDEX_IN_SUBDIRS % PAGELEN ))
+    local OFFSET=$(( CURR_PAGE * PAGELEN ))
+
+    # when multiple pages: write "Page X of Y"
+    if [ $PAGES -gt 1 ]; then
+        echo -e " │  \e[33mPage $((CURR_PAGE+1)) of $PAGES\e[0m"
+    fi
+
+    # display page using array expansion with slicing
+    echo -en "\e[s"  # SAVE cursor pos
+    printf ' ├─ %s\n' "${SUBDIRS[@]:$OFFSET:$PAGELEN}"
+    echo -en "\e[A └"  # replace ├ in last row with └
+
+    # highlight selected item
+    echo -en "\e[u"  # USE previously saved cursor pos
+    # if not in row 0: move to right row
+    [ $INDEX_IN_PAGE != 0 ] && echo -en "\e[${INDEX_IN_PAGE}B"
+    echo -en "\e[5G\e[1;7m${HIGHLIGHT_ITEM[$PWD]}\e[0m"
 }
 
 wait_for_input() {
     # ▼ wait for a keystroke -> read first byte and save into INPUT
     read -rsn1 INPUT;
     # ▼ if INPUT is ESC (= multi-byte keystroke) read another 2 bytes
-    if [ $INPUT == $'\e' ]; then read -rsn2 INPUT; fi
+    if [ "$INPUT" == $'\e' ]; then read -rsn2 INPUT; fi
     # ▼ loop to consume/empty the input buffer
     #   -> prevents aborting when user presses 2 arrow keys together
     while IFS= read -rsn1 -t 0.01; do :; done
@@ -141,16 +150,16 @@ wait_for_input() {
 
 # POSSIBLE ACTIONS
 # after each action main() repeats
-up()       { (( HIGHLIGHT_POS["$WD"]+=-1 )); }
-down()     { (( HIGHLIGHT_POS["$WD"]+=1 )); }
-left()     { CHILD="$(basename $WD)/"; cd ..; }
-right()    { cd "${HIGHLIGHT_ITEM["$WD"]}"; }
+up()       { (( HIGHLIGHT_POS[$PWD]+=-1 )); }
+down()     { (( HIGHLIGHT_POS[$PWD]+=1 )); }
+left()     { CHILD="$(basename $PWD)/"; cd ..; }
+right()    { cd "${HIGHLIGHT_ITEM[$PWD]}"; }
 help()     { MODE="HELP"; }
 restore()  { cd "$STARTING_DIR"; }
 set_exit() { MODE="EXIT"; }
 
 
 # BODY ########################################################################
-tput smcup  # call "alt screen" / "cup mode", once
+tput smcup  # call "alt screen" / "cup mode"
 tput civis  # hide cursor
 main        # launch cdi
