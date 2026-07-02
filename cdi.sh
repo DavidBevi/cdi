@@ -27,113 +27,109 @@ CREDITS:
 WIKI: https://simple.wikipedia.org/wiki/Bash \nEXITING" >&2; return 1; }
 
 # ENFORCE SOURCE (".") ########################################################
-[ "${BASH_SOURCE[0]}" == "$0" ] && { N="filename"; echo -e "
+[[ "${BASH_SOURCE[0]}" == "$0" ]] && { N="filename"; echo -e "
 ERROR: this script doesn't work with 'bash $N' or './$N'.
 FIX: use an interactive Bash session and launch with '. $N'\nEXITING"; exit; }
 
 # SETTINGS ####################################################################
-IFS=$"\n"  # makes script compatible with dirnames-with-spaces
+IFS=$'\n'  # makes script compatible with dirnames-with-spaces
 trap "MODE=ERROR" RETURN  # allows to catch errors and exit gracefully
 
 # global vars
 STARTING_DIR="$PWD"
+declare MTIME SUBDLIST SUBDLEN
+declare -A HLINDEX HLNAME
+declare PAGELEN PAGES PAGE
 # when called with argument(s) MODE=HELP
-MODE="NORMAL"; [ $# -gt 0 ] && MODE="HELP"
-# associative arrays to remember stuff for each visited dir
-declare -A HIGHLIGHT_POS
-declare -A HIGHLIGHT_ITEM
-
+MODE="NORMAL"; [[ $# > 0 ]] && MODE="HELP"
 
 # FUNCTIONS ###################################################################
 main() {
-    clear
-    if [ $MODE == "HELP" ]; then show_help; fi
-    if [ $MODE == "NORMAL" ]; then
-        print_title_and_pwd
-        print_list_of_subdirs # update HIGHLIGHT_* globals
-        wait_for_input # can update MODE + HIGHLIGHT_* globals
-    else
-        tput cnorm rmcup
-        if [ "$MODE" != "EXIT" ]; then
-            echo "ERROR: cdi aborted" >&2
-            return 1
-        fi
+    tput smcup civis  # enter alt-mode, hide cursor
+    while [[ $MODE == "HELP" ]] || [[ $MODE == "NORMAL" ]]; do
+        if [[ $MODE == "HELP" ]]; then show_help; fi
+        clear
+        print_title_and_curr_dir
+        update_subdirs; update_highlight; update_pagination
+        print_list_of_subdirs
+        wait_for_input  # can update MODE + HLINDEX + HLNAME
+    done
+    tput cnorm rmcup  # exit alt-mode, show cursor
+    if [[ "$MODE" == "EXIT" ]];
+        then return 0
+        else echo "ERROR: cdi aborted" >&2; return 1
     fi
 }
 
 show_help() {
     # ▼ display HELP_SCREEN and wait for input to resume cdi
+    clear
     echo -e "\e[1;7m $TITLE \e[0m\n$HELP_SCREEN\n"
     echo -e "\e[1;7m Press any key to close help and use CDI \e[0m"
     read -rsn1; MODE="NORMAL"  # wait for input; unset help-mode
     while IFS= read -rsn1 -t 0.01; do :; done  # clear input buffer
-    clear
 }
 
-print_title_and_pwd() {
+print_title_and_curr_dir() {
     # print PWD/ with style bold inverted
     echo -e "\e[1;7m $TITLE \e[0m\n $HELP_LINE\n\n\e[1;7m${PWD%/}/\e[0m"
 }
 
+update_subdirs() {
+    local time="$PWD::$(stat -c %Y .)"
+    [[ "$MTIME" == "$time" ]] && return
+    MTIME="$time"
+    SUBDLIST=(*/)
+    SUBDLEN="${#SUBDLIST[@]}"
+}
+
+update_highlight() {
+    [[ $SUBDLEN == 0 ]] && return
+    HLINDEX["$PWD"]=$(( (HLINDEX[$PWD] + SUBDLEN) % SUBDLEN ))
+    HLNAME["$PWD"]="${SUBDLIST[${HLINDEX[$PWD]}]}"
+}
+
+update_pagination() {
+    local _ row
+    IFS='[;' read -p $'\e[6n' -d R -rs _ row _ _
+    # ensure row is numeric, else script crashes
+    [[ "$row" =~ ^[0-9]+$ ]] || row=4
+    PAGELEN=$((LINES - row - 2))
+    PAGES=$(( (SUBDLEN + PAGELEN - 1) / PAGELEN ))  # ceil
+    PAGE=$(( ${HLINDEX["$PWD"]} / PAGELEN ))  # floor
+}
+
 print_list_of_subdirs() {
-    # fetch subdirs; abort if no subdirs
-    local SUBDIRS=(*/)
-    if [ "${SUBDIRS[0]}" == "*/" ]; then
+    # if no list: abort
+    if [[ "${SUBDLIST[0]}" == "*/" ]]; then
         echo -e "\e[33m └─ [no dirs]\e[0m"
         return
     fi
-    local SUBDLEN="${#SUBDIRS[@]}"
-
-    # update global HIGHLIGHT_POS
-    # if CHILD exists it's the subdir we're coming from: use it + delete it
-    if [ "$CHILD" ]; then
-        for i in "${!SUBDIRS[@]}"; do
-            if [ "$CHILD" == "${SUBDIRS[$i]}" ]
-                then HIGHLIGHT_POS["$PWD"]=$i; break; fi
-        done
-        unset CHILD
-    # else sanitize negative values (I think math func is faster than IF)
-    else
-        HIGHLIGHT_POS["$PWD"]=$(( (HIGHLIGHT_POS[$PWD] + SUBDLEN) % SUBDLEN ))
-    fi
-    local INDEX_IN_SUBDIRS=${HIGHLIGHT_POS["$PWD"]}
-
-    # update global HIGHLIGHT_ITEM
-    HIGHLIGHT_ITEM["$PWD"]="${SUBDIRS[$INDEX_IN_SUBDIRS]}"
-
-    # make pages to display long lists
-    local CURRENT_ROW; local _
-    IFS='[;' read -p $'\e[6n' -d R -rs _ CURRENT_ROW _ _
-    # ensure CURRENT_ROW is numeric, else script crashes
-    [[ "$CURRENT_ROW" =~ ^[0-9]+$ ]] || CURRENT_ROW=4
-    local PAGELEN=$((LINES - CURRENT_ROW - 2))
-    local PAGES=$(( (SUBDLEN + PAGELEN - 1) / PAGELEN ))  # ceil()
-    local CURR_PAGE=$(( INDEX_IN_SUBDIRS / PAGELEN ))
-    local INDEX_IN_PAGE=$(( INDEX_IN_SUBDIRS % PAGELEN ))
-    local OFFSET=$(( CURR_PAGE * PAGELEN ))
 
     # when multiple pages: write "Page X of Y"
-    if [ $PAGES -gt 1 ]; then
-        echo -e " │  \e[33mPage $((CURR_PAGE+1)) of $PAGES\e[0m"
+    if [[ $PAGES -gt 1 ]]; then
+        echo -e " │  \e[33mPage $((PAGE+1)) of $PAGES\e[0m"
     fi
 
     # display page using array expansion with slicing
     echo -en "\e[s"  # SAVE cursor pos
-    printf ' ├─ %s\n' "${SUBDIRS[@]:$OFFSET:$PAGELEN}"
+    printf ' ├─ %s\n' "${SUBDLIST[@]:$((PAGE*PAGELEN)):$PAGELEN}"
     echo -en "\e[A └"  # replace ├ in last row with └
 
     # highlight selected item
     echo -en "\e[u"  # USE previously saved cursor pos
     # if not in row 0: move to right row
-    [ $INDEX_IN_PAGE != 0 ] && echo -en "\e[${INDEX_IN_PAGE}B"
-    echo -en "\e[5G\e[1;7m${HIGHLIGHT_ITEM[$PWD]}\e[0m"
+    local row=$(( ${HLINDEX["$PWD"]} % PAGELEN ))
+    if [[ $row != 0 ]]; then echo -en "\e[${row}B"; fi
+    echo -en "\e[5G\e[1;7m${HLNAME[$PWD]}\e[0m"
 }
 
 wait_for_input() {
+    local INPUT
     # ▼ wait for a keystroke -> read first byte and save into INPUT
     read -rsn1 INPUT;
     # ▼ if INPUT is ESC (= multi-byte keystroke) read another 2 bytes
-    if [ "$INPUT" == $'\e' ]; then read -rsn2 INPUT; fi
+    if [[ "$INPUT" == $'\e' ]]; then read -rsn2 INPUT; fi
     # ▼ loop to consume/empty the input buffer
     #   -> prevents aborting when user presses 2 arrow keys together
     while IFS= read -rsn1 -t 0.01; do :; done
@@ -144,22 +140,29 @@ wait_for_input() {
         [A|OA) up;;    [B|OB) down;;    [C|OC) right;;    [D|OD) left;;
         h) help;;      r) restore;;     *) set_exit;;
     esac
-    # ▼ continue by relaunching main
-    main
 }
 
 # POSSIBLE ACTIONS
-# after each action main() repeats
-up()       { (( HIGHLIGHT_POS[$PWD]+=-1 )); }
-down()     { (( HIGHLIGHT_POS[$PWD]+=1 )); }
-left()     { CHILD="$(basename $PWD)/"; cd ..; }
-right()    { cd "${HIGHLIGHT_ITEM[$PWD]}"; }
+up()       { (( HLINDEX[$PWD]+=-1 )); }
+down()     { (( HLINDEX[$PWD]+=1 )); }
+right()    { cd "${HLNAME[$PWD]}"; }
+left() {
+    [[ $PWD == "/" ]] && return
+    local child="${PWD##*/}/" i=0
+    cd ..
+    for d in */; do
+        if [[ "$d" == "$child" ]]
+            then break
+            else ((i++))
+        fi
+    done
+    HLNAME["$PWD"]="$child"
+    HLINDEX["$PWD"]=$i
+}
 help()     { MODE="HELP"; }
 restore()  { cd "$STARTING_DIR"; }
 set_exit() { MODE="EXIT"; }
 
 
 # BODY ########################################################################
-tput smcup  # call "alt screen" / "cup mode"
-tput civis  # hide cursor
-main        # launch cdi
+main # launch cdi
