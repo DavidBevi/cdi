@@ -1,7 +1,7 @@
 # `cdi` - Change Directory Interactively
 A Bash script with interactive TUI - by DavidBevi
 
-![GIF](https://github.com/DavidBevi/cdi/blob/main/cdi-demo.gif?raw=true)
+![GIF](https://github.com/DavidBevi/cdi/blob/main/cdi_2.0_demo.gif?raw=true)
 
 # The two `cdi`s
 | Antônio Oliveira | in 2020 | made [`cdi`](https://github.com/antonioolf/cdi) | which is inactive since 2020 |
