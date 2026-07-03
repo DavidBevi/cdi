@@ -41,7 +41,7 @@ declare MTIME SUBDLIST SUBDLEN
 declare -A HLINDEX HLNAME
 declare PAGELEN PAGES PAGE
 # when called with argument(s) MODE=HELP
-MODE="NORMAL"; [[ $# > 0 ]] && MODE="HELP"
+MODE="NORMAL"; [[ $# -gt 0 ]] && MODE="HELP"
 
 # FUNCTIONS ###################################################################
 main() {
@@ -76,7 +76,8 @@ print_title_and_curr_dir() {
 }
 
 update_subdirs() {
-    local time="$PWD::$(stat -c %Y .)"
+    local time
+    time="$PWD::$(stat -c %Y .)"
     [[ "$MTIME" == "$time" ]] && return
     MTIME="$time"
     SUBDLIST=(*/)
