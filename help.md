@@ -1,4 +1,8 @@
-# Install / Usage errors
+# Install / Usage errors 
+
+| 🚧 This doc is under construction |
+|-|
+
 
 ### Wrong shell
 If you see this (part of the output of `fish`)
