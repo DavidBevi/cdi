@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # CDI - Change Dir Interactive - https://github.com/DavidBevi/cdi
-# v2.2 (2026-08-02)
+# v2.2.1 (2026-08-03)
 #
 # SYNOPSIS
 # CDI prints the path of the working dir and the list of its subdirs.
@@ -136,7 +136,6 @@ build_highlight() {
     fi
 }
 
-
 # Fetch the terminal window's height and paginize subdirs-list if needed
 build_page() {
     local _ starting_row
@@ -158,12 +157,12 @@ print_page_with_highlight() {
     fi
     #
     # print curr page using array expansion with slicing
-    echo -en "\e[s"  # SAVE cursor pos
+    printf "\e7"  # save cursor pos
     printf ' ├─ %s\n' "${SUBDLIST[@]:$((PAGE*PAGELEN)):$PAGELEN}"
-    echo -en "\e[A └"  # replace ├ in last row with └
+    printf "\e[A └"  # replace ├ in last row with └
     #
     # highlight selected item
-    echo -en "\e[u"  # USE previously saved cursor pos
+    printf "\e8"  # jump back to previously saved cursor pos
     # if not in row 0: move to right row
     local row=$(( ${HIGHLIGHT_INDEX["$PWD"]} % PAGELEN ))
     if ((row != 0)); then echo -en "\e[${row}B"; fi
