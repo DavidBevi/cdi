@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # CDI - Change Dir Interactive - https://github.com/DavidBevi/cdi
-# v2.1.1 (2026-08-01)
+# v2.2 (2026-08-02)
 #
 # SYNOPSIS
 # CDI prints the path of the working dir and the list of its subdirs.
@@ -68,9 +68,9 @@ STARTING_DIR="$PWD"
 # when [ number of arguments > 0 ] -> STATE=HELP
 STATE="NORMAL"; (($# > 0)) && STATE="HELP"
 # associative arrays (maps)
-declare -A HIGHLIGHTED_ITEM_INDEX HIGHLIGHTED_ITEM_NAME
+declare -A HIGHLIGHT_INDEX HIGHLIGHT_NAME
 # other vars
-declare CACHED_DIR_MTIME SUBDLIST SUBDLEN PAGELEN PAGES PAGE
+declare SUBDLIST SUBDLEN PAGELEN PAGES PAGE PREV_PWD
 
 # FUNCTIONS ###################################################################
 
@@ -108,30 +108,38 @@ print_header_and_working_dir() {
     echo -e "\e[1;7m${PWD%/}/\e[0m"
 }
 
-# Fetch the subdirs list (only when CDing and when mtime changed)
+# Fetch the subdirs list
 build_subdirs() {
-    # build a string with PWD and CACHED_DIR_MTIME (modification time)
-    local curr_dir_mtime
-    curr_dir_mtime="$PWD::$(stat -c %Y .)"
-    # return if the cached and the current dir_mtime strings are equal
-    if [[ "$CACHED_DIR_MTIME" == "$curr_dir_mtime" ]]; then return; fi
-    # else save dir_mtime to cache and rebuild the subdirs-list
-    CACHED_DIR_MTIME="$curr_dir_mtime"
+    # MTIME-based cache removed: checking MTIME is slower than getting list
     SUBDLIST=(*/)
     # if no subdirs then SUBDLIST will contain only "*/" -> clean up
     if [[ ${SUBDLIST[0]} == '*/' ]]; then SUBDLIST=(); fi
+    # subdirs-list-len is used a lot, it's convenient to set this
     SUBDLEN="${#SUBDLIST[@]}"
 }
 
+# Set HIGHLIGHT_NAME and HIGHLIGHT_INDEX
+build_highlight() {
+    if [[ "$PREV_PWD" ]]; then
+        # get NAME (= PREV_PWD) and find corresponding INDEX
+        local index=0
+        for dir in */; do
+            if [[ "$dir" != "$PREV_PWD" ]]; then ((index++)); else break; fi
+        done
+        HIGHLIGHT_INDEX["$PWD"]=$index
+        HIGHLIGHT_NAME["$PWD"]="$PREV_PWD"
+        PREV_PWD=
+    else
+        # ensure INDEX is a valid number and find corresponding NAME
+        HIGHLIGHT_INDEX["$PWD"]=$(((HIGHLIGHT_INDEX[$PWD] +SUBDLEN) %SUBDLEN))
+        HIGHLIGHT_NAME["$PWD"]="${SUBDLIST[${HIGHLIGHT_INDEX[$PWD]}]}"
+    fi
+}
+
+
 # Fetch the terminal window's height and paginize subdirs-list if needed
-build_highlight_and_page() {
+build_page() {
     local _ starting_row
-    # use modulo to ensure that the index is valid
-    HIGHLIGHTED_ITEM_INDEX["$PWD"]=$((
-        (HIGHLIGHTED_ITEM_INDEX[$PWD] + SUBDLEN) % SUBDLEN ))
-    # save the name of the highlighted item
-    HIGHLIGHTED_ITEM_NAME["$PWD"]="${SUBDLIST[
-        ${HIGHLIGHTED_ITEM_INDEX[$PWD]}]}"
     # ask the cursor pos, keep only the row
     IFS='[;' read -p $'\e[6n' -d R -rs _ starting_row _ _
     # ensure starting_row is numeric, else script crashes
@@ -139,7 +147,7 @@ build_highlight_and_page() {
     # update globals
     PAGELEN=$((LINES - starting_row - 2))
     PAGES=$(( (SUBDLEN + PAGELEN - 1) / PAGELEN ))  # ceil
-    PAGE=$(( ${HIGHLIGHTED_ITEM_INDEX["$PWD"]} / PAGELEN ))  # floor
+    PAGE=$(( ${HIGHLIGHT_INDEX["$PWD"]} / PAGELEN ))  # floor
 }
 
 # Display subdirs list, highlight the current selection
@@ -157,9 +165,9 @@ print_page_with_highlight() {
     # highlight selected item
     echo -en "\e[u"  # USE previously saved cursor pos
     # if not in row 0: move to right row
-    local row=$(( ${HIGHLIGHTED_ITEM_INDEX["$PWD"]} % PAGELEN ))
+    local row=$(( ${HIGHLIGHT_INDEX["$PWD"]} % PAGELEN ))
     if ((row != 0)); then echo -en "\e[${row}B"; fi
-    echo -en "\e[5G\e[1;7m${HIGHLIGHTED_ITEM_NAME[$PWD]}\e[0m"
+    echo -en "\e[5G\e[1;7m${HIGHLIGHT_NAME[$PWD]}\e[0m"
 }
 
 # Wait until the user presses a key and do the appropriate action
@@ -184,34 +192,23 @@ wait_for_input() {
 
 # POSSIBLE ACTIONS
 up() {
-    ((HIGHLIGHTED_ITEM_INDEX[$PWD]+=-1))
+    ((HIGHLIGHT_INDEX[$PWD]+=-1))
 }
 
 down() {
-    ((HIGHLIGHTED_ITEM_INDEX[$PWD]+=1))
+    ((HIGHLIGHT_INDEX[$PWD]+=1))
 }
 
 right() {
-    cd "${HIGHLIGHTED_ITEM_NAME[$PWD]}" || : # ignore CD fails
+    cd "${HIGHLIGHT_NAME[$PWD]}" || : # ignore CD fails
 }
 
 left() {
     # return if pwd == root
     if [[ "$PWD" == "/" ]]; then return; fi
-    # save child_dir and CD up
-    local child_dir="${PWD##*/}/"
+    # save PREV_PWD and CD up
+    PREV_PWD="${PWD##*/}/"
     cd .. || STATE="ERROR DOING CD UP"
-    # find and highlight child_dir
-    local i=0
-    for subdir in */; do
-        if [[ "$subdir" != "$child_dir" ]]; then
-            ((i++))
-        else
-            HIGHLIGHTED_ITEM_INDEX["$PWD"]="$i"
-            HIGHLIGHTED_ITEM_NAME["$PWD"]="$child_dir"
-            break
-        fi
-    done
 }
 
 help() {
@@ -237,13 +234,13 @@ while [[ $STATE == "HELP" ]] || [[ $STATE == "NORMAL" ]]; do
     clear
     print_header_and_working_dir
     build_subdirs
-    if (($SUBDLEN < 1)); then
+    if ((SUBDLEN < 1)); then
         echo -e "\e[33m └─ [no dirs]\e[0m"
     else
-        build_highlight_and_page
+        build_highlight; build_page
         print_page_with_highlight
     fi
-    wait_for_input  # can update STATE + HIGHLIGHTED_ITEM
+    wait_for_input  # can update STATE + HIGHLIGHT
 done
 
 # Exit alt-mode, show cursor
